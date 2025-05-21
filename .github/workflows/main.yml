@@ -33,4 +33,10 @@ jobs:
           Write-Host "Password: $Password"
           Write-Host "=========================================="
           Write-Host "Connect using Microsoft Remote Desktop."
-          Write-Host "Session will end after 6 hours (max GitHub runner time)."
+          Write-Host "Session will end after 5 hours (max GitHub runner time)."
+
+      - name: Keep runner alive for 5 hours
+        shell: pwsh
+        run: |
+          Write-Host "Sleeping for 5 hours (18000 seconds) to keep RDP session alive..."
+          Start-Sleep -Seconds 18000

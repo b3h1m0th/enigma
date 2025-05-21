@@ -10,19 +10,22 @@ jobs:
       - name: Enable RDP, set password, print credentials
         shell: pwsh
         run: |
-          # Set a random password for the runner user
-          $Password = [System.Web.Security.Membership]::GeneratePassword(20,3)
+          function New-RandomPassword($length = 20, $nonAlphanumericCount = 3) {
+            $alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            $digits = '0123456789'
+            $special = '!@#$%^&*-_=+[]{}'
+            $all = ($alpha + $digits + $special).ToCharArray()
+            $pw = -join ((1..($length - $nonAlphanumericCount)) | ForEach-Object { $all | Get-Random })
+            $pw += -join ((1..$nonAlphanumericCount) | ForEach-Object { $special | Get-Random })
+            ($pw.ToCharArray() | Sort-Object {Get-Random}) -join ''
+          }
+          $Password = New-RandomPassword 20 3
           $User = "$env:USERNAME"
           net user $User $Password
 
-          # Enable RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-          # Get public IP
           $IP = (Invoke-WebRequest -UseBasicParsing -Uri "https://api.ipify.org").Content
-
-          # Print RDP connection info
           Write-Host "=========================================="
           Write-Host "RDP Enabled!"
           Write-Host "IP: $IP"

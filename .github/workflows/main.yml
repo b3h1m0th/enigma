@@ -15,15 +15,14 @@ jobs:
       - name: Start AnyDesk and display session info
         shell: pwsh
         run: |
-          # Start AnyDesk as a background process
           Start-Process -FilePath "$env:USERPROFILE\AnyDesk.exe" -ArgumentList "--start-service" -WindowStyle Minimized
           Start-Sleep -Seconds 10
 
-          # Try to get the AnyDesk ID (best effort, may need user to check visually on the runner)
-          $id = ""
+          # Try to get the AnyDesk ID (best effort)
           $adcfg = "$env:APPDATA\AnyDesk\service.conf"
+          $id = ""
           if (Test-Path $adcfg) {
-            $bytes = Get-Content $adcfg -Encoding Byte
+            $bytes = [System.IO.File]::ReadAllBytes($adcfg)
             $idx = [Array]::IndexOf($bytes,0x0A,0)
             if ($idx -gt 0) {
               $id = [System.Text.Encoding]::UTF8.GetString($bytes,0,$idx)

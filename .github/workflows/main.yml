@@ -1,14 +1,33 @@
 name: Windows RDP Session
 
 on:
-  workflow_dispatch: # Allows manual trigger
+  workflow_dispatch:
 
 jobs:
-  rdp:
+  enable-rdp:
     runs-on: windows-latest
-
     steps:
-      - name: Enable RDP and display credentials
+      - name: Enable RDP, set password, print credentials
+        shell: pwsh
         run: |
-          Invoke-WebRequest -Uri https://raw.githubusercontent.com/FDiskas/Windows2019-RDP/master/enable-rdp.ps1 -OutFile enable-rdp.ps1
-          powershell -ExecutionPolicy Bypass -File enable-rdp.ps1
+          # Set a random password for the runner user
+          $Password = [System.Web.Security.Membership]::GeneratePassword(20,3)
+          $User = "$env:USERNAME"
+          net user $User $Password
+
+          # Enable RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          # Get public IP
+          $IP = (Invoke-WebRequest -UseBasicParsing -Uri "https://api.ipify.org").Content
+
+          # Print RDP connection info
+          Write-Host "=========================================="
+          Write-Host "RDP Enabled!"
+          Write-Host "IP: $IP"
+          Write-Host "Username: $User"
+          Write-Host "Password: $Password"
+          Write-Host "=========================================="
+          Write-Host "Connect using Microsoft Remote Desktop."
+          Write-Host "Session will end after 6 hours (max GitHub runner time)."

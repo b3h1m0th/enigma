@@ -1,0 +1,14 @@
+name: Windows RDP Session
+
+on:
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+
+    steps:
+      - name: Enable RDP and display credentials
+        run: |
+          Invoke-WebRequest -Uri https://raw.githubusercontent.com/FDiskas/Windows2019-RDP/master/enable-rdp.ps1 -OutFile enable-rdp.ps1
+          powershell -ExecutionPolicy Bypass -File enable-rdp.ps1

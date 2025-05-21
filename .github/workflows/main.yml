@@ -1,45 +1,73 @@
-name: Windows AnyDesk Session
+name: Windows RustDesk Session
 
 on:
   workflow_dispatch:
 
 jobs:
-  anydesk-connect:
+  rustdesk-connect:
     runs-on: windows-latest
     steps:
-      - name: Download AnyDesk
+      - name: Download RustDesk
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://download.anydesk.com/AnyDesk.exe" -OutFile "$env:USERPROFILE\AnyDesk.exe"
+          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.4.0/rustdesk-1.4.0-x86_64.exe" -OutFile "$env:USERPROFILE\rustdesk.exe"
 
-      - name: Start AnyDesk and display session info
+      - name: Start RustDesk in unattended mode and get ID
         shell: pwsh
         run: |
-          Start-Process -FilePath "$env:USERPROFILE\AnyDesk.exe" -ArgumentList "--start-service" -WindowStyle Minimized
-          Start-Sleep -Seconds 10
+          # Generate an 8-character random password
+          function New-RandomPassword($length = 8) {
+            $alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+            -join ((1..$length) | ForEach-Object { $alpha | Get-Random })
+          }
+          $Password = New-RandomPassword 8
 
-          # Try to get the AnyDesk ID (best effort)
-          $adcfg = "$env:APPDATA\AnyDesk\service.conf"
+          # Start RustDesk in background
+          Start-Process -FilePath "$env:USERPROFILE\rustdesk.exe" -ArgumentList "--password $Password" -WindowStyle Minimized
+          
+          # Wait for RustDesk to initialize
           $id = ""
-          if (Test-Path $adcfg) {
-            $bytes = [System.IO.File]::ReadAllBytes($adcfg)
-            $idx = [Array]::IndexOf($bytes,0x0A,0)
-            if ($idx -gt 0) {
-              $id = [System.Text.Encoding]::UTF8.GetString($bytes,0,$idx)
+          $retries = 60 # Retry for up to 2 minutes
+          for ($i=0; $i -lt $retries; $i++) {
+            # Check log file
+            $logFile = "$env:APPDATA\RustDesk\rustdesk-log.txt"
+            if (Test-Path $logFile) {
+              $lines = Get-Content $logFile -ErrorAction SilentlyContinue
+              foreach ($line in $lines) {
+                if ($line -match "ID:\s*(\d+)") {
+                  $id = $Matches[1]
+                  break
+                }
+              }
             }
+            # Check config file
+            $idFile = "$env:APPDATA\RustDesk\config\id"
+            if (-not $id -and (Test-Path $idFile)) {
+              $fileId = Get-Content $idFile -ErrorAction SilentlyContinue
+              if ($fileId -match "^\d+$") {
+                $id = $fileId.Trim()
+              }
+            }
+            if ($id) { break }
+            Start-Sleep -Seconds 2
           }
-          if (-not $id) {
-            Write-Host "Unable to read AnyDesk ID from config file. You may need to connect using the runner's public IP or check the runner's desktop."
-          }
+
           Write-Host "======================="
-          Write-Host "AnyDesk is running!"
-          Write-Host "AnyDesk ID (if available): $id"
-          Write-Host "If ID is not shown, connect using the runner's public IP and check the desktop for the AnyDesk window."
+          if ($id) {
+            Write-Host "RustDesk is running!"
+            Write-Host "ID: $id"
+            Write-Host "Password: $Password"
+            Write-Host "Use your RustDesk client to connect."
+          } else {
+            Write-Host "RustDesk is running, but the ID could not be detected automatically."
+            Write-Host "Please connect to the runner using another remote method (such as RDP) and check the RustDesk window for the ID."
+            Write-Host "Password: $Password"
+          }
           Write-Host "Session will end after 5 hours (max GitHub runner time)."
           Write-Host "======================="
 
       - name: Keep runner alive for 5 hours
         shell: pwsh
         run: |
-          Write-Host "Sleeping for 5 hours (18000 seconds) to keep AnyDesk session alive..."
+          Write-Host "Sleeping for 5 hours (18000 seconds) to keep RustDesk session alive..."
           Start-Sleep -Seconds 18000

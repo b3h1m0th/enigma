@@ -1,27 +1,26 @@
-name: Ubuntu RDP with Serveo Tunnel
+name: Windows Cloudflared Tunnel
 
 on:
   workflow_dispatch:
 
 jobs:
-  setup-rdp:
-    runs-on: ubuntu-latest
+  tunnel:
+    runs-on: windows-latest
     steps:
-      - name: Install desktop environment and xrdp
+      - name: Download cloudflared
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xfce4 xfce4-goodies xrdp
-          echo "startxfce4" > ~/.xsession
-          sudo service xrdp restart
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
 
-      - name: Start Serveo SSH tunnel for RDP (port 3389)
+      # EXAMPLE: Tunnel a local web server on port 8080
+      # If you want to tunnel RDP (port 3389) on a self-hosted runner, change 8080 to 3389
+      - name: Start cloudflared tunnel to localhost:8080
         run: |
-          nohup ssh -o StrictHostKeyChecking=no -R 3389:localhost:3389 serveo.net > serveo.log 2>&1 &
-          sleep 10
+          Start-Process -NoNewWindow -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url http://localhost:8080 --no-autoupdate" 
+          Start-Sleep -Seconds 10
 
-      - name: Show Serveo public address
+      - name: Show cloudflared public URL
         run: |
-          grep -Eo 'Forwarding.*serveo.net' serveo.log || cat serveo.log
+          Get-Content cloudflared.log -Raw | Select-String "https" | Select-Object -First 1
 
       - name: Keep runner alive for 3 hours
-        run: sleep 10800
+        run: Start-Sleep -Seconds 10800

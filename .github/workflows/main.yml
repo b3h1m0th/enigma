@@ -1,4 +1,4 @@
-name: Ubuntu RDP with Loophole Tunnel
+name: Ubuntu RDP with Serveo Tunnel
 
 on:
   workflow_dispatch:
@@ -14,20 +14,14 @@ jobs:
           echo "startxfce4" > ~/.xsession
           sudo service xrdp restart
 
-      - name: Download Loophole
+      - name: Start Serveo SSH tunnel for RDP (port 3389)
         run: |
-          wget -q https://github.com/loopholecloud/cli/releases/latest/download/loophole-linux-amd64
-          sudo mv loophole-linux-amd64 /usr/local/bin/loophole
-          sudo chmod +x /usr/local/bin/loophole
+          nohup ssh -o StrictHostKeyChecking=no -R 3389:localhost:3389 serveo.net > serveo.log 2>&1 &
+          sleep 10
 
-      - name: Start Loophole TCP tunnel to RDP port 3389
+      - name: Show Serveo public address
         run: |
-          nohup loophole tcp 3389 --disable-clipboard --disable-auth > loophole.log 2>&1 &
-          sleep 5
-
-      - name: Show tunnel info
-        run: |
-          grep "Forwarding" loophole.log
+          grep -Eo 'Forwarding.*serveo.net' serveo.log || cat serveo.log
 
       - name: Keep runner alive for 3 hours
         run: sleep 10800

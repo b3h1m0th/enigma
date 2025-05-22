@@ -18,9 +18,5 @@ jobs:
           Start-Process -NoNewWindow -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url http://localhost:8080 --no-autoupdate" 
           Start-Sleep -Seconds 10
 
-      - name: Show cloudflared public URL
-        run: |
-          Get-Content cloudflared.log -Raw | Select-String "https" | Select-Object -First 1
-
       - name: Keep runner alive for 3 hours
         run: Start-Sleep -Seconds 10800

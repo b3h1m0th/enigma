@@ -1,22 +1,42 @@
-name: Windows Cloudflared Tunnel
+name: Windows RDP Session
 
 on:
   workflow_dispatch:
 
 jobs:
-  tunnel:
+  enable-rdp:
     runs-on: windows-latest
     steps:
-      - name: Download cloudflared
+      - name: Enable RDP, set password, print credentials
+        shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          function New-RandomPassword($length = 20, $nonAlphanumericCount = 3) {
+            $alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            $digits = '0123456789'
+            $special = '!@#$%^&*-_=+[]{}'
+            $all = ($alpha + $digits + $special).ToCharArray()
+            $pw = -join ((1..($length - $nonAlphanumericCount)) | ForEach-Object { $all | Get-Random })
+            $pw += -join ((1..$nonAlphanumericCount) | ForEach-Object { $special | Get-Random })
+            ($pw.ToCharArray() | Sort-Object {Get-Random}) -join ''
+          }
+          $Password = New-RandomPassword 20 3
+          $User = "$env:USERNAME"
+          net user $User $Password
 
-      # EXAMPLE: Tunnel a local web server on port 8080
-      # If you want to tunnel RDP (port 3389) on a self-hosted runner, change 8080 to 3389
-      - name: Start cloudflared tunnel to localhost:8080
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          $IP = (Invoke-WebRequest -UseBasicParsing -Uri "https://api.ipify.org").Content
+          Write-Host "=========================================="
+          Write-Host "RDP Enabled!"
+          Write-Host "IP: $IP"
+          Write-Host "Username: $User"
+          Write-Host "Password: $Password"
+          Write-Host "=========================================="
+          Write-Host "Connect using Microsoft Remote Desktop."
+          Write-Host "Session will end after 5 hours (max GitHub runner time)."
+
+      - name: Keep runner alive for 5 hours
+        shell: pwsh
         run: |
-          Start-Process -NoNewWindow -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url http://localhost:8080 --no-autoupdate" 
-          Start-Sleep -Seconds 10
-
-      - name: Keep runner alive for 3 hours
-        run: Start-Sleep -Seconds 10800
+          Write-Host "Sleeping for 5 hours (18000 seconds) to keep RDP session alive..."
+          Start-Sleep -Seconds 18000

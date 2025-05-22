@@ -1,73 +1,33 @@
-name: Windows RustDesk Session
+name: Ubuntu RDP with Cloudflared Tunnel
 
 on:
   workflow_dispatch:
 
 jobs:
-  rustdesk-connect:
-    runs-on: windows-latest
+  setup-rdp:
+    runs-on: ubuntu-latest
     steps:
-      - name: Download RustDesk
-        shell: pwsh
+      - name: Install desktop environment and xrdp
         run: |
-          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.4.0/rustdesk-1.4.0-x86_64.exe" -OutFile "$env:USERPROFILE\rustdesk.exe"
+          sudo apt-get update
+          sudo apt-get install -y xfce4 xfce4-goodies xrdp
+          echo "startxfce4" > ~/.xsession
+          sudo service xrdp restart
 
-      - name: Start RustDesk in unattended mode and get ID
-        shell: pwsh
+      - name: Download cloudflared
         run: |
-          # Generate an 8-character random password
-          function New-RandomPassword($length = 8) {
-            $alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-            -join ((1..$length) | ForEach-Object { $alpha | Get-Random })
-          }
-          $Password = New-RandomPassword 8
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
 
-          # Start RustDesk in background
-          Start-Process -FilePath "$env:USERPROFILE\rustdesk.exe" -ArgumentList "--password $Password" -WindowStyle Minimized
-
-          # Wait for RustDesk to initialize and try to get the ID from both log and config file
-          $id = ""
-          $retries = 60 # Retry for up to 2 minutes
-          for ($i=0; $i -lt $retries; $i++) {
-            $logFile = "$env:APPDATA\RustDesk\rustdesk-log.txt"
-            if (Test-Path $logFile) {
-              $lines = Get-Content $logFile -ErrorAction SilentlyContinue
-              foreach ($line in $lines) {
-                if ($line -match "ID:\s*(\d+)") {
-                  $id = $Matches[1]
-                  break
-                }
-              }
-            }
-            $idFile = "$env:APPDATA\RustDesk\config\id"
-            if (-not $id -and (Test-Path $idFile)) {
-              $fileId = Get-Content $idFile -ErrorAction SilentlyContinue
-              if ($fileId -match "^\d+$") {
-                $id = $fileId.Trim()
-              }
-            }
-            if ($id) { break }
-            Start-Sleep -Seconds 2
-          }
-
-          if ($id) {
-            Set-Clipboard -Value $id
-            $clipboardId = Get-Clipboard
-            Write-Host "======================="
-            Write-Host "RustDesk is running!"
-            Write-Host "ID (from clipboard): $clipboardId"
-            Write-Host "Password: $Password"
-            Write-Host "Use your RustDesk client to connect."
-            Write-Host "======================="
-          } else {
-            Write-Host "RustDesk is running, but the ID could not be detected automatically."
-            Write-Host "Please connect to the runner using another remote method (such as RDP) and check the RustDesk window for the ID."
-            Write-Host "Password: $Password"
-          }
-          Write-Host "Session will end after 5 hours (max GitHub runner time)."
-
-      - name: Keep runner alive for 5 hours
-        shell: pwsh
+      - name: Start cloudflared tunnel to RDP port 3389
         run: |
-          Write-Host "Sleeping for 5 hours (18000 seconds) to keep RustDesk session alive..."
-          Start-Sleep -Seconds 18000
+          nohup cloudflared tunnel --url tcp://localhost:3389 --no-autoupdate > cloudflared.log 2>&1 &
+          sleep 5
+
+      - name: Show tunnel info
+        run: |
+          cat cloudflared.log | grep -Eo 'tcp://[a-zA-Z0-9\.-]+:[0-9]+'
+
+      - name: Keep runner alive for 3 hours
+        run: sleep 10800

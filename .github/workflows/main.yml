@@ -10,9 +10,8 @@ jobs:
       - name: Download RustDesk
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-windows_x64.zip" -OutFile "rustdesk.zip"
-          Expand-Archive -Path "rustdesk.zip" -DestinationPath "$env:USERPROFILE\rustdesk"
-      
+          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.4.0/rustdesk-1.4.0-x86_64.exe" -OutFile "$env:USERPROFILE\rustdesk.exe"
+
       - name: Start RustDesk in unattended mode and get ID
         shell: pwsh
         run: |
@@ -62,6 +61,13 @@ jobs:
             Write-Host "======================="
           } else {
             Write-Host "RustDesk is running, but the ID could not be detected automatically."
+            Write-Host "Please connect to the runner using another remote method (such as RDP) and check the RustDesk window for the ID."
             Write-Host "Password: $Password"
           }
           Write-Host "Session will end after 5 hours (max GitHub runner time)."
+
+      - name: Keep runner alive for 5 hours
+        shell: pwsh
+        run: |
+          Write-Host "Sleeping for 5 hours (18000 seconds) to keep RustDesk session alive..."
+          Start-Sleep -Seconds 18000

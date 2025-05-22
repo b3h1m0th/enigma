@@ -1,22 +1,67 @@
-name: Windows - Anydesk
+name: Windows RustDesk Session
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Start Building...
+  rustdesk-connect:
     runs-on: windows-latest
-    timeout-minutes: 9999
-    
     steps:
-      - name: Downloading & Installing Essentials
+      - name: Download RustDesk
+        shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://www.dropbox.com/s/ei73gt7vevxck2t/Downloads.bat?dl=1" -OutFile "Downloads.bat"
-          cmd /c Downloads.bat
+          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-windows_x64.zip" -OutFile "rustdesk.zip"
+          Expand-Archive -Path "rustdesk.zip" -DestinationPath "$env:USERPROFILE\rustdesk"
+      
+      - name: Start RustDesk in unattended mode and get ID
+        shell: pwsh
+        run: |
+          # Generate an 8-character random password
+          function New-RandomPassword($length = 8) {
+            $alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+            -join ((1..$length) | ForEach-Object { $alpha | Get-Random })
+          }
+          $Password = New-RandomPassword 8
 
-      - name: Log In To AnyDesk
-        run: cmd /c start.bat
+          # Start RustDesk in background
+          Start-Process -FilePath "$env:USERPROFILE\rustdesk.exe" -ArgumentList "--password $Password" -WindowStyle Minimized
 
-      - name: Time Counter
-        run: python time.py
+          # Wait for RustDesk to initialize and try to get the ID from both log and config file
+          $id = ""
+          $retries = 60 # Retry for up to 2 minutes
+          for ($i=0; $i -lt $retries; $i++) {
+            $logFile = "$env:APPDATA\RustDesk\rustdesk-log.txt"
+            if (Test-Path $logFile) {
+              $lines = Get-Content $logFile -ErrorAction SilentlyContinue
+              foreach ($line in $lines) {
+                if ($line -match "ID:\s*(\d+)") {
+                  $id = $Matches[1]
+                  break
+                }
+              }
+            }
+            $idFile = "$env:APPDATA\RustDesk\config\id"
+            if (-not $id -and (Test-Path $idFile)) {
+              $fileId = Get-Content $idFile -ErrorAction SilentlyContinue
+              if ($fileId -match "^\d+$") {
+                $id = $fileId.Trim()
+              }
+            }
+            if ($id) { break }
+            Start-Sleep -Seconds 2
+          }
+
+          if ($id) {
+            Set-Clipboard -Value $id
+            $clipboardId = Get-Clipboard
+            Write-Host "======================="
+            Write-Host "RustDesk is running!"
+            Write-Host "ID (from clipboard): $clipboardId"
+            Write-Host "Password: $Password"
+            Write-Host "Use your RustDesk client to connect."
+            Write-Host "======================="
+          } else {
+            Write-Host "RustDesk is running, but the ID could not be detected automatically."
+            Write-Host "Password: $Password"
+          }
+          Write-Host "Session will end after 5 hours (max GitHub runner time)."
